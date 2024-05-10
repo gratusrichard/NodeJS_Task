@@ -1,4 +1,9 @@
+const express = require('express');
 const { Sequelize, DataTypes } = require('sequelize');
+
+// Initialize Express app
+const app = express();
+app.use(express.json());
 
 // Configure database connection
 const sequelize = new Sequelize('database', 'username', 'password', {
@@ -24,71 +29,69 @@ const User = sequelize.define('User', {
   }
 });
 
-// CRUD operations
-async function createUser(username, email) {
-  try {
-    const user = await User.create({ username, email });
-    return user;
-  } catch (error) {
-    throw new Error('Error creating user');
-  }
-}
+// Sync model with database
+sequelize.sync({ force: true })
+  .then(() => {
+    console.log('Database & tables created!');
+  })
+  .catch(err => {
+    console.error('Error syncing database:', err);
+  });
 
-async function getUsers() {
+// Create a new user
+app.post('/users', async (req, res) => {
+  try {
+    const { username, email } = req.body;
+    const user = await User.create({ username, email });
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: 'Error creating user' });
+  }
+});
+
+// Get all users
+app.get('/users', async (req, res) => {
   try {
     const users = await User.findAll();
-    return users;
+    res.json(users);
   } catch (error) {
-    throw new Error('Error fetching users');
+    res.status(500).json({ error: 'Error fetching users' });
   }
-}
+});
 
-async function updateUser(id, username, email) {
+// Update a user
+app.put('/users/:id', async (req, res) => {
   try {
+    const { id } = req.params;
+    const { username, email } = req.body;
     const user = await User.findByPk(id);
-    if (!user) throw new Error('User not found');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
     await user.update({ username, email });
-    return user;
+    res.json(user);
   } catch (error) {
-    throw new Error('Error updating user');
+    res.status(500).json({ error: 'Error updating user' });
   }
-}
+});
 
-async function deleteUser(id) {
+// Delete a user
+app.delete('/users/:id', async (req, res) => {
   try {
+    const { id } = req.params;
     const user = await User.findByPk(id);
-    if (!user) throw new Error('User not found');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
     await user.destroy();
-    return user;
+    res.json(user);
   } catch (error) {
-    throw new Error('Error deleting user');
+    res.status(500).json({ error: 'Error deleting user' });
   }
-}
+});
 
-// Testing
-async function test() {
-  try {
-    // Sync model with database
-    await sequelize.sync({ force: true });
-
-    // Create user
-    const newUser = await createUser('john_doe', 'john@example.com');
-    console.log('Created User:', newUser.toJSON());
-
-    // Get all users
-    const allUsers = await getUsers();
-    console.log('All Users:', allUsers.map(user => user.toJSON()));
-
-    // Update user
-    const updatedUser = await updateUser(newUser.id, 'john_smith', 'john@example.com');
-    console.log('Updated User:', updatedUser.toJSON());
-
-    // Delete user
-    const deletedUser = await deleteUser(newUser.id);
-    console.log('Deleted User:', deletedUser.toJSON());
-  } catch (error) {
-    console.error('Error:', error.message);
-  }
-}
-
-test();
+// Start the server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
