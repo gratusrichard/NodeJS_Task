@@ -1,82 +1,94 @@
-const express = require('express');
-const { Client } = require('pg');
+const { Sequelize, DataTypes } = require('sequelize');
 
-const connectionString = 'postgresql://username:password@localhost:5432/my_database';
-const client = new Client({ connectionString });
+// Configure database connection
+const sequelize = new Sequelize('database', 'username', 'password', {
+  dialect: 'postgres',
+  host: 'localhost'
+});
 
-const app = express();
-const port = 3000;
+// Define User model
+const User = sequelize.define('User', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  username: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  email: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true
+  }
+});
 
-app.use(express.json());
-
-async function connect() {
-    try {
-        await client.connect();
-        console.log('Connected to the database');
-    } catch (error) {
-        console.error('Error connecting to the database:', error);
-    }
+// CRUD operations
+async function createUser(username, email) {
+  try {
+    const user = await User.create({ username, email });
+    return user;
+  } catch (error) {
+    throw new Error('Error creating user');
+  }
 }
 
-// Create user
-app.post('/users', async (req, res) => {
-    const { username, email } = req.body;
-    try {
-        const query = 'INSERT INTO users (username, email) VALUES ($1, $2) RETURNING *';
-        const values = [username, email];
-        const result = await client.query(query, values);
-        res.json(result.rows[0]);
-    } catch (error) {
-        console.error('Error creating user:', error);
-        res.status(500).json({ error: 'Error creating user' });
-    }
-});
-
-// Get all users
-app.get('/users', async (req, res) => {
-    try {
-        const result = await client.query('SELECT * FROM users');
-        res.json(result.rows);
-    } catch (error) {
-        console.error('Error fetching users:', error);
-        res.status(500).json({ error: 'Error fetching users' });
-    }
-});
-
-// Update a user
-app.put('/users/:id', async (req, res) => {
-    const id = req.params.id;
-    const { username, email } = req.body;
-    try {
-        const query = 'UPDATE users SET username = $1, email = $2 WHERE id = $3 RETURNING *';
-        const values = [username, email, id];
-        const result = await client.query(query, values);
-        res.json(result.rows[0]);
-    } catch (error) {
-        console.error('Error updating user:', error);
-        res.status(500).json({ error: 'Error updating user' });
-    }
-});
-
-app.delete('/users/:id', async (req, res) => {
-    const id = req.params.id;
-    try {
-        const query = 'DELETE FROM users WHERE id = $1';
-        const values = [id];
-        await client.query(query, values);
-        res.json({ message: 'User deleted' });
-    } catch (error) {
-        console.error('Error deleting user:', error);
-        res.status(500).json({ error: 'Error deleting user' });
-    }
-});
-
-// Start the server
-async function startServer() {
-    await connect();
-    app.listen(port, () => {
-        console.log(`Server listening at http://localhost:${port}`);
-    });
+async function getUsers() {
+  try {
+    const users = await User.findAll();
+    return users;
+  } catch (error) {
+    throw new Error('Error fetching users');
+  }
 }
 
-startServer();
+async function updateUser(id, username, email) {
+  try {
+    const user = await User.findByPk(id);
+    if (!user) throw new Error('User not found');
+    await user.update({ username, email });
+    return user;
+  } catch (error) {
+    throw new Error('Error updating user');
+  }
+}
+
+async function deleteUser(id) {
+  try {
+    const user = await User.findByPk(id);
+    if (!user) throw new Error('User not found');
+    await user.destroy();
+    return user;
+  } catch (error) {
+    throw new Error('Error deleting user');
+  }
+}
+
+// Testing
+async function test() {
+  try {
+    // Sync model with database
+    await sequelize.sync({ force: true });
+
+    // Create user
+    const newUser = await createUser('john_doe', 'john@example.com');
+    console.log('Created User:', newUser.toJSON());
+
+    // Get all users
+    const allUsers = await getUsers();
+    console.log('All Users:', allUsers.map(user => user.toJSON()));
+
+    // Update user
+    const updatedUser = await updateUser(newUser.id, 'john_smith', 'john@example.com');
+    console.log('Updated User:', updatedUser.toJSON());
+
+    // Delete user
+    const deletedUser = await deleteUser(newUser.id);
+    console.log('Deleted User:', deletedUser.toJSON());
+  } catch (error) {
+    console.error('Error:', error.message);
+  }
+}
+
+test();
